@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=Electro-Firmware
+PROJECTNAME=Marvin
 
 # Active Configuration
 DEFAULTCONF=default

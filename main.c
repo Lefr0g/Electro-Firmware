@@ -8,6 +8,20 @@
 #include "types.h"
 #include <p32xxxx.h>
 
+void    set_timer()
+{
+    // On selectionne d'abord l'oscillateur externe primaire en tant que source
+    
+    
+    // On regle ensuite le timer 1 pour utiliser cette source :
+    T1CONbits.ON = 0; // On desactive le timer
+    T1CONbits.TGATE = 0; // Gated time accumulation desactive
+    T1CONbits.TCS = 0; // On choisi comme source le TPBCLK
+    T1CONbits.TCKPS = 0; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
+    TMR1 = 0; // On reset la valeur du registre de comptage pour le timer 1
+    T1CONbits.ON = 1; // On active le timer
+}
+
 int main()
 {
     u8  debounce;
@@ -17,12 +31,10 @@ int main()
     TRISFbits.TRISF1 = 0;
     TRISDbits.TRISD8 = 1;
 
+    set_timer();
+    
     OSCCONbits.COSC = 0x2;
-    T1CONbits.TCS = 0;
-    T1CONbits.TGATE = 0;
-    T1CONbits.TCKPS = 0x2;
-    TMR1 = 0;
-    T1CONbits.ON = 1;
+//    T1CONbits.ON = 1;
 
      while (1)
      {
