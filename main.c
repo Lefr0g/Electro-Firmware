@@ -8,14 +8,19 @@
 #include "types.h"
 #include <p32xxxx.h>
 
+void __attribute__((interrupt(IPL4SOFT))) __attribute__ ((at_vector(7))) btn (void)
+{
+    LATFbits.LATF1 = !LATFbits.LATF1;
+}
+
 int main()
 {
+
     set_timer();
 //  exo1();
-    exo2();
-//  exo3();
+//    exo2();
+  exo3();
 //  exo4();
-
     return (1);
 }
 
@@ -65,6 +70,27 @@ void    exo2()
              LATFbits.LATF1 = !LATFbits.LATF1;
              TMR1 = 0;
          }
+     }
+}
+
+void    exo3()
+{
+    u8  debounce;
+    u16  timeCount;
+    u16  timeCountDefault;
+
+    timeCountDefault = 3906;
+    timeCount = timeCountDefault;
+    LATFbits.LATF1 = 1;
+    TRISFbits.TRISF1 = 0;
+    TRISDbits.TRISD8 = 1;
+    INTCONbits.MVEC =1; // multi vector mode
+    INTCONbits.INT1EP = 0; // front descendant
+    IEC0bits.INT1IE = 1; // enable D8
+    IPC1bits.INT1IP = 4; // priorite
+    
+    while (1)
+     {
      }
 }
 
