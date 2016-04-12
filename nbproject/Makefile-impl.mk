@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=Marvin
+PROJECTNAME=TP_Marvin
 
 # Active Configuration
 DEFAULTCONF=default

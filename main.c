@@ -7,10 +7,48 @@
 
 #include "types.h"
 #include <p32xxxx.h>
+#include <sys/attribs.h>
 
-void __attribute__((interrupt(IPL4SOFT))) __attribute__ ((at_vector(7))) btn (void)
+/* exo3
+void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn (void)
+{
+        INTCONbits.INT1EP = 1 //front montant
+        PR1 /= 2;
+        if (PR1 < 3906 / 16)
+            PR1 = 3906;
+        IFS0bits.INT1IF = 0;
+        TMR1 = 0;
+}
+*/
+
+/*exo4*/
+void    dim(void)
+{
+    TMR1 = 0;
+}
+
+void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn (void)
+{
+    u8 start;
+    u8 end;
+
+    start = 0;      // time stamp 1
+    INTCONbits.INT1EP = 1; //front montant
+    end = 0;        // time stamp 2
+    INTCONbits.INT1EP = 0; //front descendant
+    if ((end - start) > 2)
+        dim();
+    PR1 /= 2;
+    if (PR1 < 3906 / 16)
+        PR1 = 3906;
+    IFS0bits.INT1IF = 0;
+    TMR1 = 0;
+}
+
+void __ISR(_TIMER_1_VECTOR, IPL4) blink (void)
 {
     LATFbits.LATF1 = !LATFbits.LATF1;
+    IFS0bits.T1IF = 0;
 }
 
 int main()
@@ -19,8 +57,8 @@ int main()
     set_timer();
 //  exo1();
 //    exo2();
-  exo3();
-//  exo4();
+//  exo3();
+  exo4();
     return (1);
 }
 
@@ -76,21 +114,58 @@ void    exo2()
 void    exo3()
 {
     u8  debounce;
-    u16  timeCount;
-    u16  timeCountDefault;
 
-    timeCountDefault = 3906;
-    timeCount = timeCountDefault;
+  //  timeCountDefault = 3906;
+
+    PR1 = 3906;
+
     LATFbits.LATF1 = 1;
     TRISFbits.TRISF1 = 0;
     TRISDbits.TRISD8 = 1;
-    INTCONbits.MVEC =1; // multi vector mode
+
+    INTCONbits.MVEC = 1; // multi vector mode
+
     INTCONbits.INT1EP = 0; // front descendant
-    IEC0bits.INT1IE = 1; // enable D8
-    IPC1bits.INT1IP = 4; // priorite
-    
+
+    IEC0bits.INT1IE = 1; // enable button Interrupt
+    IPC1bits.INT1IP = 3; // priorite button interrupt
+    IEC0bits.T1IE = 1; // enable Timer1 Interrupt
+    IPC1bits.T1IP = 4; // priorite button interrupt
+
+    __builtin_enable_interrupts(); // Tell CPU to look at interrupts
+
     while (1)
      {
+        WDTCONbits.WDTCLR = 1;
+     }
+}
+
+void    exo4()
+{
+    u8  debounce;
+
+  //  timeCountDefault = 3906;
+
+    PR1 = 3906;
+
+    LATFbits.LATF1 = 1;
+    TRISFbits.TRISF1 = 0;
+    TRISDbits.TRISD8 = 1;
+
+    INTCONbits.MVEC = 1; // multi vector mode
+
+    INTCONbits.INT1EP = 0; // front descendant
+
+    IEC0bits.INT1IE = 1; // enable button Interrupt
+    IPC1bits.INT1IP = 3; // priorite button interrupt
+    IEC0bits.T1IE = 1; // enable Timer1 Interrupt
+    IPC1bits.T1IP = 4; // priorite button interrupt
+
+    __builtin_enable_interrupts(); // Tell CPU to look at interrupts
+
+    while (1)
+     {
+        WDTCONbits.WDTCLR = 1;
      }
 }
 
@@ -108,7 +183,7 @@ void    set_timer()
  //   DEVCFG1bits.POSCMOD = 0x0; // On selectionne le mode External Clock (EC) de
                                 // l'oscillateur
 
- //   OSCCONbits.PBDIV = 0x3; // On regle le postscaler a 8
+ //  OSCCONbits.PBDIV = 0x3; // On regle le postscaler a 8
 
     /*
     ** On regle ensuite le timer 1 pour utiliser cette source :
@@ -116,7 +191,7 @@ void    set_timer()
     T1CONbits.ON = 0; // On desactive le timer
     T1CONbits.TGATE = 0; // Gated time accumulation desactive
     T1CONbits.TCS = 0; // On choisi comme source le TPBCLK
-    T1CONbits.TCKPS = 0x3; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
+    T1CONbits.TCKPS = 0x7; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
     TMR1 = 0; // On reset la valeur du registre de comptage pour le timer 1
     T1CONbits.ON = 1; // On active le timer
 }
