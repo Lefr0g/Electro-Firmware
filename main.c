@@ -9,6 +9,8 @@
 #include <p32xxxx.h>
 #include <sys/attribs.h>
 
+#define TIMER_TICS_PER_SEC 15625
+
 /* exo3
 void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn_ex3 (void)
 {
@@ -21,17 +23,22 @@ void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn_ex3 (void)
 */
 
 /*exo4*/
+
+
+u8  button_flag = 0;
 u8  dim_flag = 0;
 u8  dim_way = 0;
+u8  pwm_high_done = 0;
 u16 timer1_stamp = 0;
 u16 timer1_count = 0;
-u16 timer1_blink_period = 3906;
 u16 timer1_dim_period = 100;
-u16 timer1_default_period = 62500;
+u16 timer1_default_period = TIMER_TICS_PER_SEC;
 
 u16 timer2_count = 0;
 u16 timer2_stamp = 0;
-u16 timer2_period_default = 62500;
+u16 timer2_slower = 0;
+u16 timer2_dim_period_init = 1;
+u16 timer2_default_period = TIMER_TICS_PER_SEC;
 
 void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn_ex4 (void)
 {
@@ -42,46 +49,72 @@ void __ISR(_EXTERNAL_1_VECTOR, IPL3) btn_ex4 (void)
 
     if (!INTCONbits.INT1EP)
     {
-        timer2_stamp = TMR2;
-        INTCONbits.INT1EP = 1;
-        PR2 = 0;
-    }
-    else if (INTCONbits.INT1EP && TMR2 < timer2_period_default * 2
-            && !timer2_count)
-    {
         dim_flag = 0;
-        PR1 /= 2;
-        if (PR1 < timer1_blink_period / 16)
-            PR1 = timer1_blink_period;
+        dim_way = 0;
+        button_flag++;
+        PR2 = timer2_default_period;
+//       TMR2 = 0;
+        timer2_stamp = timer2_count;
+        INTCONbits.INT1EP = 1;
+//        PR2 = 0;
     }
-    else
+    else if (INTCONbits.INT1EP && timer2_count - timer2_stamp < 2)
     {
-        dim_flag = 1;
+  //      button_flag = 0;
+        PR1 /= 2;
+        if (PR1 < timer1_default_period / 16)
+            PR1 = timer1_default_period;
+        TMR1 = 0;
+        INTCONbits.INT1EP = 0;
+    }
+    else if (INTCONbits.INT1EP && timer2_count - timer2_stamp >= 2)
+    {
+       dim_flag = 1;
+       PR1 = timer1_dim_period;
+       PR2 = timer2_dim_period_init;
+       TMR1 = 0;
+       TMR2 = 0;
+       INTCONbits.INT1EP = 0;
     // Switch to dim
     }
     IFS0bits.INT1IF = 0;
-    TMR1 = 0;
 }
 
+/*
+ * Periode total du signal PWM
+ */
 void __ISR(_TIMER_1_VECTOR, IPL4) timer1_ex4 (void)
 {
     LATFbits.LATF1 = !LATFbits.LATF1;
+    if (dim_flag)
+    {
+        pwm_high_done = 0;
+        TMR2 = 0;
+    }
     IFS0bits.T1IF = 0;
 }
 
-void __ISR(_TIMER_2_VECTOR, IPL5) timer2_ex4 (void)
+/*
+ * Periode de l'etat haut du signal PWM
+ */
+void __ISR(_TIMER_2_VECTOR, IPL2) timer2_ex4 (void)
 {
-    if (!dim_flag)
-        timer2_count++;
-    else
+    timer2_count++;
+    if (dim_flag && !pwm_high_done)
     {
-        if (dim_way)
-            PR2++;
-        else
-            PR2--;
-        if (PR2 >= PR1)
-            dim_way = !dim_way;
+        if (!timer2_slower || timer2_count > timer2_slower + 5
+                || timer2_count < timer2_slower)
+        {
+            if (!dim_way)
+                PR2++;
+            else
+                PR2--;
+            if (PR2 <= timer2_dim_period_init || PR2 >= timer1_dim_period)
+                dim_way = !dim_way;
+            timer2_slower = timer2_count;
+        }
         LATFbits.LATF1 = !LATFbits.LATF1;
+        pwm_high_done = 1;
     }
     IFS0bits.T2IF = 0;
 }
@@ -185,11 +218,8 @@ void    exo3()
 
 void    exo4()
 {
-    u8  debounce;
-
-  //  timeCountDefault = 3906;
-
-    PR1 = 3906;
+    PR1 = timer1_default_period;
+    PR2 = timer2_default_period;
 
     LATFbits.LATF1 = 1;
     TRISFbits.TRISF1 = 0;
@@ -204,7 +234,7 @@ void    exo4()
     IEC0bits.T1IE = 1; // enable Timer1 Interrupt
     IPC1bits.T1IP = 4; // priorite Timer1 interrupt
     IEC0bits.T2IE = 1; // enable Timer2 Interrupt
-    IPC2bits.T2IP = 5; // priorite Timer2 interrupt
+    IPC2bits.T2IP = 2; // priorite Timer2 interrupt
 
     __builtin_enable_interrupts(); // Tell CPU to look at interrupts
 
@@ -236,15 +266,15 @@ void    set_timer()
     T1CONbits.ON = 0; // On desactive le timer
     T1CONbits.TGATE = 0; // Gated time accumulation desactive
     T1CONbits.TCS = 0; // On choisi comme source le TPBCLK
-    T1CONbits.TCKPS = 0x7; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
+    T1CONbits.TCKPS = 0x2; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
     TMR1 = 0; // On reset la valeur du registre de comptage pour le timer 1
     T1CONbits.ON = 1; // On active le timer
 
     T2CONbits.ON = 0; // On desactive le timer
     T2CONbits.TGATE = 0; // Gated time accumulation desactive
 //    T2CONbits.TCS = 0; // On choisi comme source le TPBCLK
-    T2CONbits.TCKPS = 0x7; // Valeur du prescaler (de 00 = 1:1 a 11 = 1:256)
-    TMR2 = 0; // On reset la valeur du registre de comptage pour le timer 1
+    T2CONbits.TCKPS = 0x6; // Valeur du prescaler (de 000 = 1:1 a 111 = 1:256)
+    TMR2 = 0; // On reset la valeur du registre de comptage pour le timer 2
     T2CONbits.ON = 1; // On active le timer
 }
 
